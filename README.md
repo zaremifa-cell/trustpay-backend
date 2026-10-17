@@ -1,6 +1,6 @@
 # TrustPay — reliable payment processing with identity controls
 
-[Portfolio case study](https://zlatko-anastasov-portfolio.vercel.app/trustpay.html)
+[Portfolio case study](https://zlatko-anastasov-portfolio.vercel.app/trustpay.html) · [Interactive demo](https://trustpay-demo.vercel.app) · [Reviewer walkthrough](docs/LIVE-DEMO.md)
 
 A Java 21 / Spring Boot portfolio backend demonstrating payment correctness under retries, concurrent requests, provider timeouts and process failures. PostgreSQL is the system of record; RabbitMQ transports durable payment events. All identities and payments are synthetic.
 
@@ -97,3 +97,7 @@ CI runs PostgreSQL integration tests, builds the full Compose stack, and execute
 ## Verified evidence
 
 See [verification report](docs/verification.md) for executed checks, measured SQL plans, HTTP timings and a recorded JVM profile. The CI definition is supplied; no remote GitHub run is claimed.
+
+## Online reviewer sandbox
+
+The same Java backend has a Vercel cloud deployment profile, with a private Vercel Queues adapter and PostgreSQL-backed provider simulator. See [five-minute walkthrough and cloud architecture](docs/LIVE-DEMO.md). Local Compose continues to use RabbitMQ.
