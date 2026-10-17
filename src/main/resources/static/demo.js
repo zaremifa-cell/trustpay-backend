@@ -1,5 +1,6 @@
 'use strict';
 let token, customer, payment, lastRequest, lastKey, verified=false, busy=false;
+const actions={};
 const el=id=>document.getElementById(id);
 const terminal=p=>p&&['SUCCEEDED','FAILED'].includes(p.status);
 const pending=()=>payment&&!terminal(payment);
@@ -7,12 +8,14 @@ const money=amount=>new Intl.NumberFormat('en-IE',{style:'currency',currency:'EU
 const log=(label,data)=>{el('results').textContent=label+'\n'+JSON.stringify(data,null,2)+'\n\n'+el('results').textContent.slice(0,18000);};
 function notice(title,detail,tone='info'){el('notice').dataset.tone=tone;el('notice-title').textContent=title;el('notice-detail').textContent=detail;el('notice-icon').textContent=tone==='success'?'✓':tone==='error'?'!':tone==='pending'?'…':'→';}
 function controls(){
- const available={start:true,customer:!!token&&!pending(),blocked:!!customer&&!verified,verify:!!customer&&!verified,success:verified&&!pending(),failed:verified&&!pending(),timeout:verified&&!pending(),refresh:!!payment,replay:!!payment&&!pending(),callback:terminal(payment),isolation:!!payment,copy:!!token};
- for(const [id,on] of Object.entries(available))el(id).disabled=busy||!on;
+ const available={start:!!token,customer:!!token&&!pending(),blocked:!!customer&&!verified,verify:!!customer&&!verified,success:verified&&!pending(),failed:verified&&!pending(),timeout:verified&&!pending(),refresh:!!payment,replay:!!payment&&!pending(),callback:terminal(payment),isolation:!!payment,copy:!!token};
+ for(const [id,on] of Object.entries(available)){const button=el(id);if(button)button.disabled=busy||!on;}
  const stage=!token?0:!customer?1:!verified?2:3;
  for(let i=0;i<4;i++){el('step-'+i).className=i<stage||i===3&&terminal(payment)?'done':i===stage?'current':'';if(i===stage&&!terminal(payment))el('step-'+i).setAttribute('aria-current','step');else el('step-'+i).removeAttribute('aria-current');}
+ el('next').hidden=verified&&!pending()&&!busy;
  el('next').disabled=busy;
- el('next').textContent=busy?'Please wait…':pending()?'Check payment status →':['1. Start demo →','2. Create customer →','3. Verify identity →','Make a €100 payment →'][stage];
+ el('scenario-hint').textContent=busy?'Processing your request — please wait…':pending()?'Your payment is still processing. Wait for its result before choosing another scenario.':verified?'Choose any scenario below. You can try all three, one after another.':'Complete the three setup steps above to unlock these scenarios.';
+ el('next').textContent=busy?'Please wait…':pending()?'Check payment status →':['1. Start demo →','2. Create customer →','3. Verify identity →','Choose a scenario below'][stage];
 }
 async function api(path,method='GET',body,headers={},auth=token,expected=[]){
  const res=await fetch(path,{method,signal:AbortSignal.timeout(35000),headers:{...(auth?{Authorization:'Bearer '+auth}:{}),...(body?{'Content-Type':'application/json'}:{}),...headers},body:body?JSON.stringify(body):undefined});
@@ -39,14 +42,14 @@ async function watch(){
  if(terminal(payment))await evidence();
  else notice('Payment is still pending','The service may be waking up. Click “Check payment status” to continue.','pending');
 }
-function action(id,title,detail,fn){el(id).addEventListener('click',async()=>{
- if(busy)return;busy=true;notice(title,detail,'loading');controls();el(id).setAttribute('aria-busy','true');
+function action(id,title,detail,fn){actions[id]=async()=>{
+ if(busy)return;busy=true;notice(title,detail,'loading');controls();el(id)?.setAttribute('aria-busy','true');
  try{await fn();}catch(error){log('Request failed',{message:error.message});notice('We could not finish this step',error.message.includes('timeout')?'The request took too long. Please try again.':error.message,'error');}
- finally{busy=false;el(id).removeAttribute('aria-busy');controls();}
-});}
-el('next').addEventListener('click',()=>{if(busy)return;el(!token?'start':!customer?'customer':!verified?'verify':pending()?'refresh':'success').click();});
+ finally{busy=false;el(id)?.removeAttribute('aria-busy');controls();}
+};el(id)?.addEventListener('click',actions[id]);}
+el('next').addEventListener('click',()=>{if(busy)return;const id=!token?'start':!customer?'customer':!verified?'verify':pending()?'refresh':null;if(id)actions[id]();});
 action('start','Starting your demo…','Creating your private 15-minute session. The first request can take longer.',async()=>{
- const r=await api('/api/demo/session','POST',undefined,{},null);token=r.value.access_token;customer=payment=lastRequest=lastKey=undefined;verified=false;
+ const r=await api('/api/demo/session','POST',undefined,{},null);token=r.value.access_token;customer=payment=lastRequest=lastKey=undefined;verified=false;for(const id of ['success','failed','timeout'])el(id).setAttribute('aria-pressed','false');
  el('session').textContent='Session active / '+r.value.merchant+' / expires in 15 minutes';el('payment').textContent='No payment selected.';el('payment-card').dataset.state='idle';el('result-title').textContent='Session ready ✓';el('result-detail').textContent='Next, create a simulated customer using the button above.';el('result-amount').textContent='€0.00';el('evidence-summary').textContent='The payment status will update automatically.';
  notice('Step 1 complete — session ready','Next: click “Create customer” above.','success');
 });
@@ -58,10 +61,10 @@ action('blocked','Testing the identity check…','An unverified customer should 
  if(r.status!==422)throw new Error('Unexpected result: an unverified customer was allowed to pay.');notice('Identity protection passed ✓','Payment blocked as expected. Verify the customer to continue.','success');
 });
 action('verify','Verifying the test identity…','This is a simulated identity decision.',async()=>{
- await api('/api/demo/customers/'+customer.id+'/verify','PUT');verified=true;el('result-title').textContent='Ready to pay ✓';el('result-detail').textContent='Identity verified. Use the button above to send a simulated €100 payment.';notice('Step 3 complete — identity verified','Next: click “Make a €100 payment”. No real money is used.','success');
+ await api('/api/demo/customers/'+customer.id+'/verify','PUT');verified=true;el('result-title').textContent='Ready to pay ✓';el('result-detail').textContent='Identity verified. Choose a successful, declined or delayed payment from the three cards above.';notice('Step 3 complete — identity verified','Choose one of the three scenario cards. Each produces a different outcome.','success');
 });
-async function pay(amount){el('payment-card').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'});lastRequest={customerId:customer.id,amount,currency:'EUR'};lastKey=crypto.randomUUID();el('evidence-summary').textContent='Waiting for the final payment result…';const r=await api('/api/payments','POST',lastRequest,{'Idempotency-Key':lastKey});select(r.value);await watch();}
-action('success','Sending your €100 payment…','Watch the payment card below. The result updates automatically.',()=>pay(10000));
+async function pay(amount){for(const [id,value] of [['success',10000],['failed',1300],['timeout',9900]])el(id).setAttribute('aria-pressed',String(value===amount));el('payment-card').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'});lastRequest={customerId:customer.id,amount,currency:'EUR'};lastKey=crypto.randomUUID();el('evidence-summary').textContent='Waiting for the final payment result…';const r=await api('/api/payments','POST',lastRequest,{'Idempotency-Key':lastKey});select(r.value);await watch();}
+action('success','Sending your €100 payment…','The provider will accept this payment. Watch the result update automatically.',()=>pay(10000));
 action('failed','Testing a declined payment…','The €13 scenario deliberately simulates a provider rejection.',()=>pay(1300));
 action('timeout','Testing a delayed response…','The €99 scenario demonstrates recovery without a duplicate charge.',()=>pay(9900));
 action('refresh','Checking payment status…','Looking up the original payment and its ledger.',async()=>{const r=await api('/api/payments/'+payment.id);select(r.value);if(pending())await watch();else await evidence();});
