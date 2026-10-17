@@ -33,3 +33,7 @@ Root `vercel.json` defines the service graph, private bindings and queue trigger
 `JWT_SECRET`, `PROVIDER_SECRET`, `CLOUD_INTERNAL_SECRET`, `MERCHANT_PASSWORD`, `OTHER_PASSWORD`, `OPS_PASSWORD`, `DATABASE_URL` (pooled JDBC), `MIGRATION_DATABASE_URL` (direct JDBC), `DATABASE_USER`, `DATABASE_PASSWORD`, `PROVIDER_DATABASE_URL` (Postgres URI), `PORT=8080`, `SPRING_PROFILES_ACTIVE=vercel`.
 
 Basic authentication is disabled in the public demo. Generated demo JWTs have MERCHANT privileges, never OPS. Demo verification checks ownership and is only available in the public-demo profile. Request limits are per instance, not a distributed abuse-control system. This is a constrained portfolio demonstration, not a real payment gateway.
+
+## Automated checks
+
+`sh ./scripts/test.sh` runs 19 PostgreSQL-backed Java integration tests. `npm ci --prefix cloud/queue-publish && npm test --prefix cloud/queue-publish` runs four raw HTTP adapter tests. `python3 scripts/check-live.py https://trustpay-demo.vercel.app` checks the public deployment without printing session tokens. GitHub Actions runs the Java, Docker failure scenarios and Node adapter checks.
