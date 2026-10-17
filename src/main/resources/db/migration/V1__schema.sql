@@ -1,0 +1,10 @@
+CREATE TABLE customers(id UUID PRIMARY KEY, merchant VARCHAR(100) NOT NULL, identity_status VARCHAR(20) NOT NULL CHECK(identity_status IN ('PENDING','VERIFIED','REJECTED')), created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE payments(id UUID PRIMARY KEY, merchant VARCHAR(100) NOT NULL, customer_id UUID NOT NULL REFERENCES customers(id), idempotency_key VARCHAR(200) NOT NULL, amount BIGINT NOT NULL CHECK(amount > 0 AND amount <= 10000000), currency VARCHAR(3) NOT NULL CHECK(currency IN ('EUR','USD','GBP')), status VARCHAR(20) NOT NULL CHECK(status IN ('CREATED','PROCESSING','UNKNOWN','SUCCEEDED','FAILED')), created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE(merchant,idempotency_key));
+CREATE INDEX payments_merchant_created_idx ON payments(merchant,created_at DESC,id);
+CREATE INDEX payments_unresolved_idx ON payments(updated_at) WHERE status IN ('PROCESSING','UNKNOWN');
+CREATE TABLE ledger_transactions(payment_id UUID PRIMARY KEY REFERENCES payments(id), currency VARCHAR(3) NOT NULL, debit_amount BIGINT NOT NULL CHECK(debit_amount > 0), credit_amount BIGINT NOT NULL, debit_account VARCHAR(100) NOT NULL, credit_account VARCHAR(100) NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), CHECK(debit_amount=credit_amount), CHECK(debit_account<>credit_account));
+CREATE TABLE audit(id BIGSERIAL PRIMARY KEY, merchant VARCHAR(100) NOT NULL, entity_id UUID NOT NULL, action VARCHAR(100) NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE outbox(id UUID PRIMARY KEY, payment_id UUID NOT NULL REFERENCES payments(id), published BOOLEAN NOT NULL DEFAULT false, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE INDEX outbox_pending_idx ON outbox(created_at) WHERE published=false;
+CREATE TABLE consumed_events(event_id UUID PRIMARY KEY, consumed_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE reconciliation_cases(payment_id UUID NOT NULL REFERENCES payments(id), reason VARCHAR(100) NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), PRIMARY KEY(payment_id,reason));
