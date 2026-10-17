@@ -1,0 +1,65 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "java": {
+      "root": ".",
+      "runtime": "container",
+      "entrypoint": "Dockerfile.vercel",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "publisher",
+          "format": "url",
+          "env": "QUEUE_INTERNAL_URL"
+        },
+        {
+          "type": "service",
+          "service": "provider",
+          "format": "url",
+          "env": "PROVIDER_INTERNAL_URL"
+        }
+      ]
+    },
+    "queue": {
+      "root": "cloud/queue",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "java",
+          "format": "url",
+          "env": "JAVA_INTERNAL_URL"
+        }
+      ],
+      "functions": {
+        "api/consume.js": {
+          "experimentalTriggers": [
+            {
+              "type": "queue/v2beta",
+              "topic": "trustpay-payments"
+            }
+          ]
+        }
+      },
+      "runtime": "node",
+      "entrypoint": "api/consume.js"
+    },
+    "provider": {
+      "root": "simulator",
+      "runtime": "container",
+      "entrypoint": "Dockerfile.vercel"
+    },
+    "publisher": {
+      "root": "cloud/queue-publish",
+      "runtime": "node",
+      "entrypoint": "api/publish.js"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "java"
+      }
+    }
+  ]
+}

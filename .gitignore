@@ -3,3 +3,8 @@ target/
 *.jfr
 .env
 .DS_Store
+.vercel/
+.env.*
+node_modules/
+__pycache__/
+*.pyc
