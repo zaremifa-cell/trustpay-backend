@@ -60,7 +60,7 @@ class CloudDispatch {
             }
           });
     } catch (Exception e) {
-      LoggerFactory.getLogger(getClass()).warn("Outbox retained for payment {}", payment);
+      LoggerFactory.getLogger(getClass()).warn("Outbox retained for payment {}, error={}, status={}", payment, e.getClass().getSimpleName(), e instanceof org.springframework.web.client.RestClientResponseException r ? r.getStatusCode().value() : 0);
     }
   }
 
