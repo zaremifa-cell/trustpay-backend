@@ -2,7 +2,7 @@
 
 Open the live demo linked from the repository README. All identities, provider responses and money are simulated. No installation, registration or real payment information is required.
 
-Use the persistent button at the top to move through the four highlighted steps. Each action displays a visible confirmation. Payment results update automatically; technical JSON is optional and collapsed.
+Use the persistent button at the top to move through the four highlighted steps. After verification, choose one of the three scenario cards: Successful payment (€100), Declined payment (€13), or Delayed payment (€99). Every action displays a visible confirmation and results update automatically. All controls are in the top workspace; raw API responses are visible below it.
 
 1. **Start demo**, then **Create customer**. Each session has its own merchant identity and expires after 15 minutes.
 2. **Test pending identity**: expect HTTP 422. **Verify identity** enables payment creation for your customer only.
