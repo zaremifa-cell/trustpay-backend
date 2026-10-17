@@ -36,4 +36,4 @@ Basic authentication is disabled in the public demo. Generated demo JWTs have ME
 
 ## Automated checks
 
-`sh ./scripts/test.sh` runs 19 PostgreSQL-backed Java integration tests. `npm ci --prefix cloud/queue-publish && npm test --prefix cloud/queue-publish` runs four raw HTTP adapter tests. `python3 scripts/check-live.py https://trustpay-demo.vercel.app` checks the public deployment without printing session tokens. GitHub Actions runs the Java, Docker failure scenarios and Node adapter checks.
+`sh ./scripts/test.sh` runs 19 PostgreSQL-backed Java integration tests. `npm ci --prefix cloud/queue-publish && npm test --prefix cloud/queue-publish` runs four raw HTTP publisher adapter tests. `npm ci --prefix cloud/queue && npm test --prefix cloud/queue` checks the queue callback HTTP adapter. `python3 scripts/check-live.py https://trustpay-demo.vercel.app` checks the public deployment without printing session tokens. GitHub Actions runs the Java, Docker failure scenarios and Node adapter checks.
