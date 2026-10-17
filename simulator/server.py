@@ -1,10 +1,7 @@
 """Deterministic provider simulator. State persists across container restarts."""
 import json, os, sqlite3, time, hmac
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-DB=os.environ.get('SIMULATOR_DB','/data/provider.db')
-os.makedirs(os.path.dirname(DB),exist_ok=True)
-with sqlite3.connect(DB) as db:
- db.execute('CREATE TABLE IF NOT EXISTS payments(id TEXT PRIMARY KEY,payload TEXT NOT NULL)')
+from storage import store
 class Handler(BaseHTTPRequestHandler):
  def reply(self,status,value):
   self.send_response(status);self.send_header('Content-Type','application/json');self.end_headers()
@@ -17,10 +14,9 @@ class Handler(BaseHTTPRequestHandler):
  def do_GET(self):
   if not self.authorized():return
   if self.path=='/report':
-   with sqlite3.connect(DB) as db: rows=db.execute('SELECT payload FROM payments ORDER BY rowid DESC LIMIT 1000').fetchall()
-   self.reply(200,[json.loads(row[0]) for row in rows]);return
-  with sqlite3.connect(DB) as db:row=db.execute('SELECT payload FROM payments WHERE id=?',(self.path.split('/')[-1],)).fetchone()
-  self.reply(200 if row else 404,json.loads(row[0]) if row else {'error':'not found'})
+   self.reply(200,store.report());return
+  row=store.get(self.path.split('/')[-1])
+  self.reply(200 if row else 404,row if row else {'error':'not found'})
  def do_POST(self):
   if not self.authorized():return
   try:
@@ -40,11 +36,8 @@ class Handler(BaseHTTPRequestHandler):
     if size>65536:raise ValueError('body too large')
     raw=self.rfile.read(size)
    value=json.loads(raw)
-   result={**value,'status':'FAILED' if value['amount']==1300 else 'SUCCEEDED'}
-   with sqlite3.connect(DB) as db:
-    db.execute('INSERT OR IGNORE INTO payments VALUES (?,?)',(value['paymentId'],json.dumps(result)))
-    result=json.loads(db.execute('SELECT payload FROM payments WHERE id=?',(value['paymentId'],)).fetchone()[0])
+   result=store.submit(value)
    if value['amount']==9900:time.sleep(4) # Accepted externally, response lost locally.
    self.reply(200,result)
   except (ValueError,KeyError):self.reply(400,{'error':'invalid request'})
-ThreadingHTTPServer(('0.0.0.0',8081),Handler).serve_forever()
+ThreadingHTTPServer(('0.0.0.0',int(os.environ.get('PORT','8081'))),Handler).serve_forever()
