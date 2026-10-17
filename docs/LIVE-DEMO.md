@@ -2,12 +2,14 @@
 
 Open the live demo linked from the repository README. All identities, provider responses and money are simulated. No installation, registration or real payment information is required.
 
+Use the persistent button at the top to move through the four highlighted steps. Each action displays a visible confirmation. Payment results update automatically; technical JSON is optional and collapsed.
+
 1. **Start demo**, then **Create customer**. Each session has its own merchant identity and expires after 15 minutes.
 2. **Test pending identity**: expect HTTP 422. **Verify identity** enables payment creation for your customer only.
-3. **Pay €100**, then **Refresh status + ledger** until SUCCEEDED. Inspect the audit trail and the single balanced debit/credit transaction.
+3. **Pay €100**, then **Check status + ledger** if needed; the card updates automatically to SUCCEEDED. Inspect the audit trail and the single balanced debit/credit transaction.
 4. **Repeat same request**: expect the same payment ID. **Repeat settlement twice**: expect one ledger transaction, demonstrating duplicate delivery safety.
 5. **Test another merchant**: a separate JWT cannot read your payment (HTTP 404).
-6. **Pay €13**: provider rejection ends FAILED with no ledger entry. **Test €99 timeout**: provider accepts durably but delays its response. Refresh to reconcile UNKNOWN/PROCESSING to SUCCEEDED without a second ledger entry.
+6. **Pay €13**: provider rejection ends FAILED with no ledger entry. **Test €99 timeout**: provider accepts durably but delays its response. Automatic status checks reconcile UNKNOWN/PROCESSING to SUCCEEDED without a second ledger entry.
 
 You can copy your session JWT into Swagger's **Authorize** dialog to call the API directly. Each session permits 3 customers and 25 payments; per-instance request limits also apply. Demo data remains in the database after the session expires. First requests may be slower after idle periods.
 
