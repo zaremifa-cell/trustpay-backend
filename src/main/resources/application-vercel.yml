@@ -1,0 +1,27 @@
+app:
+  public-demo: true
+  cloud-adapter: true
+  jobs-enabled: false
+  jwt-secret: ${JWT_SECRET}
+  provider-secret: ${PROVIDER_SECRET}
+  provider-url: ${PROVIDER_INTERNAL_URL}
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 0
+      idle-timeout: 30000
+  flyway:
+    url: ${MIGRATION_DATABASE_URL}
+    user: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD}
+  rabbitmq:
+    listener:
+      simple:
+        auto-startup: false
+management:
+  health:
+    rabbit:
+      enabled: false
+server:
+  forward-headers-strategy: framework
