@@ -31,11 +31,12 @@
         }
       ],
       "functions": {
-        "api/consume.js": {
+        "**": {
           "experimentalTriggers": [
             {
               "type": "queue/v2beta",
-              "topic": "trustpay-payments"
+              "topic": "trustpay-payments",
+              "maxDeliveries": 8
             }
           ]
         }
