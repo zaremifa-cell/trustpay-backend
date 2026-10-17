@@ -1,0 +1,97 @@
+# TrustPay — reliable payment processing with identity controls
+
+A Java 21 / Spring Boot portfolio backend demonstrating payment correctness under retries, concurrent requests, provider timeouts and process failures. PostgreSQL is the system of record; RabbitMQ transports durable payment events. All identities and payments are synthetic.
+
+## Start
+
+Prerequisites: Docker Engine with Compose. First build downloads Maven dependencies and images.
+
+```sh
+docker compose up --build -d
+curl http://localhost:8080/actuator/health
+python3 scripts/demo.py
+```
+
+OpenAPI: http://localhost:8080/swagger-ui/index.html
+RabbitMQ management: http://localhost:15672 (trustpay / trustpay).
+Stop with `docker compose down`; retain volumes to preserve transactions. `down -v` explicitly deletes demo data.
+
+For local development, start dependencies with `docker compose up -d postgres rabbit provider`, then run `./mvnw spring-boot:run`. Tests use isolated PostgreSQL Testcontainers: `./scripts/test.sh` (automatically selects the active Docker context, including Colima). On standard Linux Docker, `./mvnw verify` also works. Docker must be running. Tests must pass rather than silently skip without Docker.
+
+## Demo accounts
+
+| Account | Password | Permission |
+|---|---|---|
+| merchant | merchant-demo | Own customers, payments, ledger and audit |
+| other | other-demo | A second isolated merchant |
+| ops | ops-demo | Identity review and reconciliation |
+
+Authentication supports signed JWT bearer tokens with issuer/expiry validation and a 15-minute lifetime. Obtain a token with `curl -u merchant:merchant-demo -X POST localhost:8080/api/token`, then pass `Authorization: Bearer TOKEN`. HTTP Basic also remains available for the local demo. Configure `MERCHANT_PASSWORD`, `OTHER_PASSWORD`, `OPS_PASSWORD`, and `JWT_SECRET`, and `PROVIDER_SECRET` consistently for app and simulator outside local use. Put TLS and an external identity provider in front of a real deployment; no production identity integration is claimed. Ports are bound to loopback.
+
+## API flow
+
+```sh
+curl -u merchant:merchant-demo -X POST localhost:8080/api/customers
+# Replace CUSTOMER_ID with the returned id.
+curl -u ops:ops-demo -X PUT localhost:8080/api/ops/customers/CUSTOMER_ID/identity \
+  -H 'Content-Type: application/json' -d '{"status":"VERIFIED"}'
+curl -u merchant:merchant-demo -X POST localhost:8080/api/payments \
+  -H 'Idempotency-Key: order-001' -H 'Content-Type: application/json' \
+  -d '{"customerId":"CUSTOMER_ID","amount":10000,"currency":"EUR"}'
+```
+
+Amounts are integer minor units. Supported currencies EUR, USD and GBP have two decimal places. Maximum demo payment is 100,000 major units. No FX, card handling, real KYC or real movement of money.
+
+`POST /api/payments` returns 202 with a durable operation. Poll `GET /api/payments/{id}`. Repeating the same merchant/key/payload returns the same operation; changing the payload returns 409. Unverified identity returns 422. Other merchants receive 404. The key scope is merchant plus key, retained for the lifetime of the operation.
+
+Additional routes: `GET /api/payments?limit=20`, `GET /api/payments/{id}/ledger`, `GET /api/payments/{id}/audit`, `POST /api/ops/reconcile`, `GET /api/ops/reconciliation-cases`. Shared-secret authenticated `POST /api/provider/webhook` accepts `paymentId`, `status`, `amount`, `currency` with `X-Provider-Secret`. Production webhooks should use timestamped HMAC signatures and secret rotation; this prototype uses a constant-time shared-secret comparison and state-based duplicate protection.
+
+## Failure demonstrations
+
+The persistent provider simulator deterministically chooses behavior from the amount:
+
+| Minor units | Behavior |
+|---|---|
+| 10000 | Successful payment |
+| 1300 | Declined payment |
+| 9900 | Accepted by provider, response delayed past client timeout |
+
+The last case becomes UNKNOWN, then reconciliation queries the same provider operation and settles it. Unknown outcomes are never treated as declines. Provider keys are payment UUIDs, so resubmission uses the same provider operation.
+
+Run `python3 scripts/demo.py` for assertions covering identity gating, 20 simultaneous retries, changed-payload conflict, merchant isolation, success, decline, duplicate webhook and timeout recovery. The script creates fresh demo records and prints their IDs.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  Merchant --> API[Spring REST + Security]
+  API --> DB[(PostgreSQL)]
+  DB --> Outbox[Outbox publisher]
+  Outbox --> Rabbit[RabbitMQ durable queue]
+  Rabbit --> Worker[Payment worker]
+  Worker --> Provider[Persistent provider simulator]
+  Provider --> Reconcile[Reconciliation / authenticated webhook]
+  Reconcile --> DB
+```
+
+Logical boundaries are API/security, payment domain, ledger, messaging, provider adapter and reconciliation. A single deployable keeps the demo understandable and local transactions explicit. See [architecture decisions](docs/architecture.md), [operations runbook](docs/runbook.md) and [performance workflow](docs/performance.md).
+
+## Correctness guarantees
+
+* A transaction-scoped PostgreSQL advisory lock serializes matching idempotency keys. A unique constraint remains the final guard. Customer identity is checked under a shared row lock.
+* Payment and outbox event commit together. Publishing uses persistent messages, mandatory routing and publisher confirms. A crash after publish and before marking the outbox can duplicate an event; event IDs are deduplicated in PostgreSQL.
+* The consumer commits its event receipt and PROCESSING transition before the external call. A crash after this commit is recovered by reconciliation, which scans PROCESSING and UNKNOWN operations.
+* Final transitions lock the payment row. A successful settlement and one balanced ledger transaction commit atomically. Each ledger row represents a debit/credit pair with equal positive amounts in one currency; payment ID is unique.
+* Duplicate final callbacks have no further financial effect. Contradictory results and amount/currency mismatches create deduplicated review cases.
+
+These are local database and provider-idempotency guarantees, not a claim of end-to-end exactly-once delivery. Provider idempotency and lookup are explicit assumptions.
+
+## Scope and next steps
+
+This is a runnable portfolio reference, not a certified payment institution. It includes no refunds, settlements to bank accounts, FX, sanctions screening, document verification or multi-region failover. The operational identity decision is simulated. Ledger and audit are append-only through the application APIs; a database owner can still mutate them. A real deployment needs restricted database roles, stronger audit storage, external authentication, signed webhooks, retention policy and operational alerting.
+
+CI runs PostgreSQL integration tests, builds the full Compose stack, and executes the live demo and failure-injection scripts on GitHub Actions. Performance figures are only valid when accompanied by the actual hardware, dataset and commands in the verification report.
+
+## Verified evidence
+
+See [verification report](docs/verification.md) for executed checks, measured SQL plans, HTTP timings and a recorded JVM profile. The CI definition is supplied; no remote GitHub run is claimed.

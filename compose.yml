@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: trustpay
+      POSTGRES_USER: trustpay
+      POSTGRES_PASSWORD: trustpay
+    ports: ["127.0.0.1:5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trustpay"]
+      interval: 3s
+      retries: 20
+  rabbit:
+    image: rabbitmq:4-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: trustpay
+      RABBITMQ_DEFAULT_PASS: trustpay
+    ports: ["127.0.0.1:5672:5672", "127.0.0.1:15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      retries: 30
+  provider:
+    image: python:3.12-alpine
+    command: ["python", "/app/server.py"]
+    volumes: ["./simulator:/app:ro", "providerdata:/data"]
+    environment:
+      PROVIDER_SECRET: ${PROVIDER_SECRET:-local-provider-secret}
+    ports: ["127.0.0.1:8081:8081"]
+  app:
+    build: .
+    ports: ["127.0.0.1:8080:8080"]
+    environment:
+      DATABASE_URL: jdbc:postgresql://postgres:5432/trustpay
+      RABBIT_HOST: rabbit
+      PROVIDER_URL: http://provider:8081
+      PROVIDER_SECRET: ${PROVIDER_SECRET:-local-provider-secret}
+      JWT_SECRET: ${JWT_SECRET:-local-demo-signing-key-replace-this-32-bytes}
+      MERCHANT_PASSWORD: ${MERCHANT_PASSWORD:-merchant-demo}
+      OTHER_PASSWORD: ${OTHER_PASSWORD:-other-demo}
+      OPS_PASSWORD: ${OPS_PASSWORD:-ops-demo}
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbit: {condition: service_healthy}
+      provider: {condition: service_started}
+volumes:
+  pgdata:
+  providerdata:

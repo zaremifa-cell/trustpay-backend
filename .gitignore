@@ -1,0 +1,5 @@
+target/
+.idea/
+*.jfr
+.env
+.DS_Store
