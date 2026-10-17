@@ -4,7 +4,6 @@ import java.util.*;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -27,9 +26,7 @@ class CloudDispatch {
     this.db = db;
     this.tx = new TransactionTemplate(manager);
     this.provider = provider;
-    var factory = new SimpleClientHttpRequestFactory();
-    factory.setConnectTimeout(3000);
-    factory.setReadTimeout(15000);
+    var factory = PlatformHttp.factory(url, 3000, 15000);
     queue =
         RestClient.builder()
             .baseUrl(url)
@@ -60,7 +57,16 @@ class CloudDispatch {
             }
           });
     } catch (Exception e) {
-      LoggerFactory.getLogger(getClass()).warn("Outbox retained for payment {}, error={}, status={}", payment, e.getClass().getSimpleName(), e instanceof org.springframework.web.client.RestClientResponseException r ? r.getStatusCode().value() : 0);
+      LoggerFactory.getLogger(getClass())
+          .warn(
+              "Outbox retained for payment {}, error={}, status={}",
+              payment,
+              e instanceof org.springframework.core.NestedRuntimeException n
+                  ? n.getMostSpecificCause().getClass().getSimpleName()
+                  : e.getClass().getSimpleName(),
+              e instanceof org.springframework.web.client.RestClientResponseException r
+                  ? r.getStatusCode().value()
+                  : 0);
     }
   }
 

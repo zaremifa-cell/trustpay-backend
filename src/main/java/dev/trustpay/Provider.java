@@ -2,7 +2,6 @@ package dev.trustpay;
 
 import java.util.*;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -22,9 +21,7 @@ class Provider {
       @Value("${app.provider-secret}") String secret) {
     this.db = db;
     this.payments = payments;
-    var factory = new SimpleClientHttpRequestFactory();
-    factory.setConnectTimeout(1000);
-    factory.setReadTimeout(2000);
+    var factory = PlatformHttp.factory(url, 1000, 2000);
     client =
         RestClient.builder()
             .baseUrl(url)
