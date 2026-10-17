@@ -1,0 +1,40 @@
+server:
+  port: ${PORT:8080}
+spring:
+  task:
+    scheduling:
+      pool:
+        size: 4
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/trustpay}
+    username: ${DATABASE_USER:trustpay}
+    password: ${DATABASE_PASSWORD:trustpay}
+  rabbitmq:
+    listener:
+      simple:
+        default-requeue-rejected: false
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1s
+          multiplier: 2
+    host: ${RABBIT_HOST:localhost}
+    username: ${RABBIT_USER:trustpay}
+    password: ${RABBIT_PASSWORD:trustpay}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+app:
+  jwt-secret: ${JWT_SECRET:local-demo-signing-key-replace-this-32-bytes}
+  merchant-password: ${MERCHANT_PASSWORD:merchant-demo}
+  other-password: ${OTHER_PASSWORD:other-demo}
+  ops-password: ${OPS_PASSWORD:ops-demo}
+  provider-url: ${PROVIDER_URL:http://localhost:8081}
+  provider-secret: ${PROVIDER_SECRET:local-provider-secret}
+  jobs-enabled: ${JOBS_ENABLED:true}
