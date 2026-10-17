@@ -1,5 +1,7 @@
 # TrustPay — reliable payment processing with identity controls
 
+[Portfolio case study](https://zlatko-anastasov-portfolio.vercel.app/trustpay.html)
+
 A Java 21 / Spring Boot portfolio backend demonstrating payment correctness under retries, concurrent requests, provider timeouts and process failures. PostgreSQL is the system of record; RabbitMQ transports durable payment events. All identities and payments are synthetic.
 
 ## Start
@@ -16,7 +18,7 @@ OpenAPI: http://localhost:8080/swagger-ui/index.html
 RabbitMQ management: http://localhost:15672 (trustpay / trustpay).
 Stop with `docker compose down`; retain volumes to preserve transactions. `down -v` explicitly deletes demo data.
 
-For local development, start dependencies with `docker compose up -d postgres rabbit provider`, then run `./mvnw spring-boot:run`. Tests use isolated PostgreSQL Testcontainers: `./scripts/test.sh` (automatically selects the active Docker context, including Colima). On standard Linux Docker, `./mvnw verify` also works. Docker must be running. Tests must pass rather than silently skip without Docker.
+For local development, start dependencies with `docker compose up -d postgres rabbit provider`, then run `sh ./mvnw spring-boot:run`. Tests use isolated PostgreSQL Testcontainers: `sh ./scripts/test.sh` (automatically selects the active Docker context, including Colima). On standard Linux Docker, `sh ./mvnw verify` also works. Docker must be running. Tests must pass rather than silently skip without Docker.
 
 ## Demo accounts
 
