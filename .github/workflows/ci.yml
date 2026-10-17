@@ -42,3 +42,7 @@ jobs:
           cache-dependency-path: cloud/queue-publish/package-lock.json
       - run: npm ci
       - run: npm test
+      - run: npm ci
+        working-directory: cloud/queue
+      - run: npm test
+        working-directory: cloud/queue
