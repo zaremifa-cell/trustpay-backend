@@ -1,0 +1,1 @@
+TrustPay private queue adapter
