@@ -20,7 +20,7 @@ The `vercel` Spring profile runs the same payment/ledger core in a Java 21 conta
 - `queue`: private Node consumer receiving queue deliveries and forwarding them to Java.
 - `provider`: private Python provider simulator, persisted in PostgreSQL rather than local disk.
 
-Service bindings provide internal URLs. A generated internal secret additionally protects the Java consumer and queue publisher. Provider requests use a separate generated secret. PostgreSQL connections use TLS; Java uses a pooled runtime connection and a direct Flyway migration connection. Secrets are configured in Vercel and are not stored in source control.
+Service bindings provide internal URLs. A generated internal secret additionally protects the Java consumer and queue publisher. Provider requests use a separate generated secret. Java private-service clients merge the platform-provided CA bundle with the JVM truststore, retaining certificate and hostname validation. PostgreSQL connections use TLS; Java uses a pooled runtime connection and a direct Flyway migration connection. Secrets are configured in Vercel and are not stored in source control.
 
 Payment creation commits an outbox record before publication. An accepted queue response marks it published. Queue failures leave the outbox pending for a later status request to retry. Duplicate queue deliveries use the same database receipt and ledger constraints as RabbitMQ. For this interactive sandbox, status checks also recover stale/unknown operations by querying the provider. There is no always-running reconciliation daemon or scheduled outbox scan in this cloud profile. An unvisited pending payment can therefore remain pending until checked; local Compose has scheduled publisher/reconciliation jobs.
 
