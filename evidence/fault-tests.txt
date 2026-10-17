@@ -1,0 +1,17 @@
+ Container trustpay-rabbit-1 Stopping 
+ Container trustpay-rabbit-1 Stopped 
+PASS broker outage retains transactional outbox 88a35ce7-3eca-4149-a07c-924afc99d0f3
+ Container trustpay-rabbit-1 Starting 
+ Container trustpay-rabbit-1 Started 
+PASS broker recovery completes original payment
+PASS replaying actual broker event does not duplicate ledger
+ Container trustpay-app-1 Killing 
+ Container trustpay-app-1 Killed 
+ Container trustpay-postgres-1 Waiting 
+ Container trustpay-rabbit-1 Waiting 
+ Container trustpay-rabbit-1 Healthy 
+ Container trustpay-postgres-1 Healthy 
+ Container trustpay-app-1 Starting 
+ Container trustpay-app-1 Started 
+PASS abrupt application crash recovers PROCESSING payment exactly once 8ee33e21-8836-429c-9741-96792f269ab8
+ALL FAULT ASSERTIONS PASSED

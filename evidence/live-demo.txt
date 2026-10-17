@@ -1,0 +1,8 @@
+PASS unverified identity rejected
+PASS 20 simultaneous retries -> one successful payment c0b0f072-a98c-4146-9fb1-adb843c07650
+PASS payload conflict, ownership and role restrictions
+PASS signed JWT authentication
+PASS authenticated duplicate callbacks -> one balanced ledger transaction
+PASS provider scenario 1300 FAILED 62face0a-e1dc-479c-8f4f-b8e8fe130ec7
+PASS provider scenario 9900 SUCCEEDED f58aa242-8fc8-4b53-8998-4085ac095001
+ALL LIVE ASSERTIONS PASSED

@@ -1,0 +1,14 @@
+{
+  "platform": "macOS-15.8.1-arm64-arm-64bit",
+  "endpoint": "GET /api/payments?limit=20",
+  "base_url": "http://localhost:8082",
+  "requests": 1000,
+  "concurrency": 16,
+  "warmup": 50,
+  "elapsed_seconds": 1.075,
+  "requests_per_second": 930.4,
+  "p50_ms": 13.657,
+  "p95_ms": 37.765,
+  "p99_ms": 51.964,
+  "note": "Local synthetic read workload, Python urllib opens connections; not payment throughput or a production capacity claim."
+}
