@@ -10,6 +10,26 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class Payments {
+  @org.springframework.beans.factory.annotation.Value("${app.public-demo:false}")
+  boolean publicDemo;
+
+  private void demoLimit(String merchant, String table, int max) {
+    if (!publicDemo || !merchant.startsWith("demo:")) return;
+    db.queryForObject(
+        "SELECT pg_advisory_xact_lock(hashtextextended(?,0))",
+        Object.class,
+        "demo-limit:" + merchant);
+    int count =
+        table.equals("customers")
+            ? db.queryForObject(
+                "SELECT count(*) FROM customers WHERE merchant=?", Integer.class, merchant)
+            : db.queryForObject(
+                "SELECT count(*) FROM payments WHERE merchant=?", Integer.class, merchant);
+    if (count >= max)
+      throw new ResponseStatusException(
+          TOO_MANY_REQUESTS, "Demo session limit reached; start a fresh session");
+  }
+
   private final JdbcTemplate db;
 
   public Payments(JdbcTemplate db) {
@@ -22,6 +42,7 @@ public class Payments {
 
   @Transactional
   public Customer customer(String merchant) {
+    demoLimit(merchant, "customers", 3);
     var id = UUID.randomUUID();
     db.update(
         "INSERT INTO customers(id,merchant,identity_status) VALUES (?,?,'PENDING')", id, merchant);
@@ -69,6 +90,7 @@ public class Payments {
         throw new ResponseStatusException(CONFLICT, "Key already used with a different request");
       return old;
     }
+    demoLimit(merchant, "payments", 25);
     var verified =
         db.queryForList(
             "SELECT identity_status FROM customers WHERE id=? AND merchant=? FOR SHARE",

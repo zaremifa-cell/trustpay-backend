@@ -18,16 +18,19 @@ class Api {
   private final JdbcTemplate db;
   private final String secret;
   private final Reconciliation reconciliation;
+  private final org.springframework.beans.factory.ObjectProvider<CloudDispatch> cloud;
 
   Api(
       Payments payments,
       JdbcTemplate db,
       @Value("${app.provider-secret}") String secret,
-      Reconciliation reconciliation) {
+      Reconciliation reconciliation,
+      org.springframework.beans.factory.ObjectProvider<CloudDispatch> cloud) {
     this.payments = payments;
     this.db = db;
     this.secret = secret;
     this.reconciliation = reconciliation;
+    this.cloud = cloud;
   }
 
   record Create(
@@ -53,11 +56,15 @@ class Api {
   @ResponseStatus(ACCEPTED)
   Payments.Payment create(
       Principal p, @RequestHeader("Idempotency-Key") String key, @Valid @RequestBody Create r) {
-    return payments.create(p.getName(), key, r.customerId(), r.amount(), r.currency());
+    var payment = payments.create(p.getName(), key, r.customerId(), r.amount(), r.currency());
+    cloud.ifAvailable(dispatch -> dispatch.publish(payment.id()));
+    return payment;
   }
 
   @GetMapping("/payments/{id}")
   Payments.Payment get(Principal p, @PathVariable UUID id) {
+    payments.get(p.getName(), id);
+    cloud.ifAvailable(dispatch -> dispatch.progress(id));
     return payments.get(p.getName(), id);
   }
 

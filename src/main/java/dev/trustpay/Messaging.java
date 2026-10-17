@@ -74,36 +74,15 @@ class OutboxPublisher {
 @Component
 @ConditionalOnProperty(name = "app.jobs-enabled", havingValue = "true", matchIfMissing = true)
 class PaymentConsumer {
-  final JdbcTemplate db;
-  final TransactionTemplate tx;
-  final Provider provider;
+  private final PaymentExecution execution;
 
-  PaymentConsumer(
-      JdbcTemplate db,
-      org.springframework.transaction.PlatformTransactionManager manager,
-      Provider provider) {
-    this.db = db;
-    this.tx = new TransactionTemplate(manager);
-    this.provider = provider;
+  PaymentConsumer(PaymentExecution execution) {
+    this.execution = execution;
   }
 
   @RabbitListener(queues = Messaging.QUEUE)
   void receive(String message) {
     var parts = message.split(":");
-    var event = UUID.fromString(parts[0]);
-    var payment = UUID.fromString(parts[1]);
-    Boolean first =
-        tx.execute(
-            s -> {
-              if (db.update(
-                      "INSERT INTO consumed_events(event_id) VALUES (?) ON CONFLICT DO NOTHING",
-                      event)
-                  == 0) return false;
-              return db.update(
-                      "UPDATE payments SET status='PROCESSING',updated_at=now() WHERE id=? AND status='CREATED'",
-                      payment)
-                  == 1;
-            });
-    if (Boolean.TRUE.equals(first)) provider.submit(payment);
+    execution.execute(UUID.fromString(parts[0]), UUID.fromString(parts[1]));
   }
 }

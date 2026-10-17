@@ -54,7 +54,8 @@ class Security {
   }
 
   @Bean
-  SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+  SecurityFilterChain filterChain(
+      HttpSecurity http, @Value("${app.public-demo:false}") boolean publicDemo) throws Exception {
     var authorities =
         new org.springframework.security.oauth2.server.resource.authentication
             .JwtGrantedAuthoritiesConverter();
@@ -64,25 +65,33 @@ class Security {
         new org.springframework.security.oauth2.server.resource.authentication
             .JwtAuthenticationConverter();
     converter.setJwtGrantedAuthoritiesConverter(authorities);
-    return http.csrf(c -> c.disable())
-        .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-        .authorizeHttpRequests(
-            a ->
-                a.requestMatchers(
-                        "/actuator/health",
-                        "/v3/api-docs/**",
-                        "/swagger-ui/**",
-                        "/swagger-ui.html",
-                        "/api/provider/webhook")
-                    .permitAll()
-                    .requestMatchers("/api/token")
-                    .authenticated()
-                    .requestMatchers("/api/ops/**", "/actuator/**")
-                    .hasRole("OPS")
-                    .anyRequest()
-                    .hasRole("MERCHANT"))
-        .httpBasic(b -> {})
-        .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(converter)))
-        .build();
+    var chain =
+        http.csrf(c -> c.disable())
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(
+                a ->
+                    a.requestMatchers(
+                            "/",
+                            "/index.html",
+                            "/demo.html",
+                            "/demo.css",
+                            "/demo.js",
+                            "/api/demo/session",
+                            "/api/internal/cloud/consume",
+                            "/actuator/health",
+                            "/v3/api-docs/**",
+                            "/swagger-ui/**",
+                            "/swagger-ui.html",
+                            "/api/provider/webhook")
+                        .permitAll()
+                        .requestMatchers("/api/token")
+                        .authenticated()
+                        .requestMatchers("/api/ops/**", "/actuator/**")
+                        .hasRole("OPS")
+                        .anyRequest()
+                        .hasRole("MERCHANT"))
+            .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(converter)));
+    if (!publicDemo) chain.httpBasic(b -> {});
+    return chain.build();
   }
 }
