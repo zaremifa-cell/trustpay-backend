@@ -22,6 +22,9 @@ spec:
     spec:
       serviceAccountName: trustpay
       automountServiceAccountToken: false
+      # Otherwise Kubernetes injects REDIS_PORT=tcp://… for the "redis" Service, which collides
+      # with the app's own REDIS_PORT setting. Services are found through DNS instead.
+      enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001 # the "app" user created in the Dockerfile
