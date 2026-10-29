@@ -28,6 +28,46 @@ jobs:
         if: always()
         run: docker compose down
 
+  kubernetes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo
+          key: kubesieve-${{ runner.os }}-v1
+      # Our own scanner, as a gate: any medium-or-worse misconfiguration fails the build.
+      - name: Scan manifests with kubesieve
+        run: |
+          command -v kubesieve || cargo install --locked --git https://github.com/zaremifa-cell/kubesieve
+          kubesieve scan k8s/base --fail-on medium
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: trustpay
+      - name: Build image into the cluster
+        run: |
+          docker build -t trustpay:ci .
+          kind load docker-image trustpay:ci --name trustpay
+      - name: Deploy and wait for rollout
+        run: |
+          kubectl apply -k k8s/overlays/kind
+          kubectl -n trustpay rollout status deploy/postgres --timeout=180s
+          kubectl -n trustpay rollout status deploy/rabbitmq --timeout=180s
+          kubectl -n trustpay rollout status deploy/redis --timeout=120s
+          kubectl -n trustpay rollout status deploy/trustpay --timeout=300s
+      - name: Smoke test through the Service
+        run: |
+          kubectl -n trustpay port-forward svc/trustpay 8080:80 &
+          for i in $(seq 1 30); do curl -fsS -u ops:ops-demo localhost:8080/actuator/health && break; sleep 2; done
+          curl -fsS -u ops:ops-demo localhost:8080/actuator/health | grep -q '"status":"UP"'
+          curl -fsS -u merchant:merchant-demo -X POST localhost:8080/api/customers | grep -q PENDING
+          echo "TrustPay is up in Kubernetes: health UP, database and cache reachable, API answering."
+      - name: Cluster state on failure
+        if: failure()
+        run: |
+          kubectl -n trustpay get pods,events
+          kubectl -n trustpay logs deploy/trustpay --tail=200 || true
+
   cloud-bridge:
     runs-on: ubuntu-latest
     defaults:

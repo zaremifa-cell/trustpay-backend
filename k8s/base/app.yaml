@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: trustpay
+automountServiceAccountToken: false # the app never talks to the Kubernetes API
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trustpay
+  labels: {app.kubernetes.io/name: trustpay}
+spec:
+  replicas: 2 # safe: idempotency and settlement are serialised in PostgreSQL, not in memory
+  revisionHistoryLimit: 5
+  strategy:
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  selector:
+    matchLabels: {app.kubernetes.io/name: trustpay}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: trustpay}
+    spec:
+      serviceAccountName: trustpay
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001 # the "app" user created in the Dockerfile
+        runAsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: trustpay
+          image: ghcr.io/zaremifa-cell/trustpay:1.0.0
+          ports: [{name: http, containerPort: 8080}]
+          envFrom:
+            - configMapRef: {name: trustpay-config}
+            - secretRef: {name: trustpay-secrets}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 250m, memory: 384Mi}
+            limits: {memory: 768Mi}
+          startupProbe:
+            httpGet: {path: /actuator/health/liveness, port: http}
+            periodSeconds: 5
+            failureThreshold: 36 # up to 3 minutes for migrations and JVM start
+          livenessProbe:
+            httpGet: {path: /actuator/health/liveness, port: http}
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: {path: /actuator/health/readiness, port: http}
+            periodSeconds: 5
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp} # Tomcat and the JVM need a writable /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trustpay
+spec:
+  selector: {app.kubernetes.io/name: trustpay}
+  ports: [{name: http, port: 80, targetPort: http}]
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: trustpay
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app.kubernetes.io/name: trustpay}

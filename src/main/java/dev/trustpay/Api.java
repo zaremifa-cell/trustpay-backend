@@ -75,9 +75,7 @@ class Api {
 
   @GetMapping("/balance")
   Object balance(Principal p) {
-    return db.queryForList(
-        "SELECT currency,sum(credit_amount) AS amount FROM ledger_transactions WHERE credit_account=? GROUP BY currency",
-        "merchant:" + p.getName());
+    return payments.balance(p.getName());
   }
 
   @GetMapping("/payments/{id}/ledger")

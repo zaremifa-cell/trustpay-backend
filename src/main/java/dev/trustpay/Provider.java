@@ -18,12 +18,16 @@ class Provider {
       JdbcTemplate db,
       Payments payments,
       @Value("${app.provider-url}") String url,
-      @Value("${app.provider-secret}") String secret) {
+      @Value("${app.provider-secret}") String secret,
+      RestClient.Builder builder) {
     this.db = db;
     this.payments = payments;
     var factory = PlatformHttp.factory(url, 1000, 2000);
+    // The Boot-provided builder is instrumented: each provider call becomes a span and carries
+    // the trace context (traceparent header) to the provider.
     client =
-        RestClient.builder()
+        builder
+            .clone()
             .baseUrl(url)
             .defaultHeader("X-Provider-Secret", secret)
             .requestFactory(factory)

@@ -31,14 +31,27 @@ public class Payments {
   }
 
   private final JdbcTemplate db;
+  private final org.springframework.cache.Cache idempotency;
+  private final org.springframework.cache.Cache balances;
 
-  public Payments(JdbcTemplate db) {
+  public Payments(JdbcTemplate db, org.springframework.cache.CacheManager caches) {
     this.db = db;
+    this.idempotency = caches.getCache(Caching.IDEMPOTENCY);
+    this.balances = caches.getCache(Caching.BALANCES);
   }
 
   public record Customer(UUID id, String status) {}
 
   public record Payment(UUID id, UUID customerId, long amount, String currency, String status) {}
+
+  public record Balance(String currency, long amount) {}
+
+  /** What a retry needs to be recognised without taking the advisory lock. */
+  record Replay(UUID paymentId, UUID customerId, long amount, String currency) {
+    boolean matches(UUID customer, long amount, String currency) {
+      return customerId.equals(customer) && this.amount == amount && this.currency.equals(currency);
+    }
+  }
 
   @Transactional
   public Customer customer(String merchant) {
@@ -67,6 +80,11 @@ public class Payments {
           BAD_REQUEST, "Idempotency-Key required, maximum 200 characters");
     if (amount <= 0 || amount > 10000000 || !Set.of("EUR", "USD", "GBP").contains(currency))
       throw new ResponseStatusException(BAD_REQUEST, "Invalid amount or currency");
+    // Fast path for retries: a cached replay with the same payload returns the stored payment.
+    // Anything else (miss, different payload, cache down) takes the locked database path below.
+    var replay = cached(merchant, key);
+    if (replay != null && replay.matches(customer, amount, currency))
+      return get(merchant, replay.paymentId());
     // Serialize matching keys before checking both payload and current identity.
     db.queryForObject(
         "SELECT pg_advisory_xact_lock(hashtextextended(?,0))", Object.class, merchant + ":" + key);
@@ -88,6 +106,7 @@ public class Payments {
           || old.amount() != amount
           || !old.currency().equals(currency))
         throw new ResponseStatusException(CONFLICT, "Key already used with a different request");
+      remember(merchant, key, old);
       return old;
     }
     demoLimit(merchant, "payments", 25);
@@ -110,7 +129,26 @@ public class Payments {
         currency);
     db.update("INSERT INTO outbox(id,payment_id) VALUES (?,?)", UUID.randomUUID(), id);
     audit(merchant, id, "PAYMENT_CREATED");
-    return get(merchant, id);
+    var created = get(merchant, id);
+    remember(merchant, key, created); // written after commit: the cache is transaction-aware
+    return created;
+  }
+
+  // The caches are fail-safe (see Caching): errors are logged there and read as misses.
+  private Replay cached(String merchant, String key) {
+    return idempotency.get(merchant + ":" + key, Replay.class);
+  }
+
+  private void remember(String merchant, String key, Payment p) {
+    idempotency.put(merchant + ":" + key, new Replay(p.id(), p.customerId(), p.amount(), p.currency()));
+  }
+
+  @org.springframework.cache.annotation.Cacheable(cacheNames = Caching.BALANCES, key = "#merchant")
+  public List<Balance> balance(String merchant) {
+    return db.query(
+        "SELECT currency,sum(credit_amount) AS amount FROM ledger_transactions WHERE credit_account=? GROUP BY currency ORDER BY currency",
+        (r, n) -> new Balance(r.getString("currency"), r.getLong("amount")),
+        "merchant:" + merchant);
   }
 
   public Payment get(String merchant, UUID id) {
@@ -167,6 +205,8 @@ public class Payments {
           "merchant:" + merchant);
     db.update("UPDATE payments SET status=?,updated_at=now() WHERE id=?", result, id);
     audit(merchant, id, "PAYMENT_" + result);
+    // After commit, so no reader can re-cache the old balance between eviction and commit.
+    if (result.equals("SUCCEEDED")) balances.evict(merchant);
   }
 
   void audit(String merchant, UUID entity, String action) {

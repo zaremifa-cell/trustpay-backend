@@ -9,6 +9,23 @@ spring:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/trustpay}
     username: ${DATABASE_USER:trustpay}
     password: ${DATABASE_PASSWORD:trustpay}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate # Flyway owns the schema; Hibernate only checks its mappings against it
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 500ms # a slow cache must not slow payments down
+      connect-timeout: 500ms
+  ai:
+    ollama:
+      base-url: ${OLLAMA_URL:http://localhost:11434}
+      chat:
+        options:
+          model: ${AI_MODEL:llama3.2}
+          temperature: 0.0
   rabbitmq:
     listener:
       simple:
@@ -18,6 +35,7 @@ spring:
           max-attempts: 3
           initial-interval: 1s
           multiplier: 2
+        observation-enabled: true
     host: ${RABBIT_HOST:localhost}
     username: ${RABBIT_USER:trustpay}
     password: ${RABBIT_PASSWORD:trustpay}
@@ -25,11 +43,23 @@ spring:
     publisher-returns: true
     template:
       mandatory: true
+      observation-enabled: true # trace context travels with each message
 management:
   endpoints:
     web:
       exposure:
         include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true # /actuator/health/liveness and /readiness for Kubernetes
+  health:
+    redis:
+      enabled: ${REDIS_HEALTH:false}
+  tracing:
+    sampling:
+      probability: ${TRACE_SAMPLING:1.0}
+  # Spans are exported over OTLP when MANAGEMENT_OTLP_TRACING_ENDPOINT is set (compose: Jaeger).
 app:
   jwt-secret: ${JWT_SECRET:local-demo-signing-key-replace-this-32-bytes}
   merchant-password: ${MERCHANT_PASSWORD:merchant-demo}
@@ -38,3 +68,7 @@ app:
   provider-url: ${PROVIDER_URL:http://localhost:8081}
   provider-secret: ${PROVIDER_SECRET:local-provider-secret}
   jobs-enabled: ${JOBS_ENABLED:true}
+  cache: ${CACHE:memory} # memory | redis
+  ai:
+    enabled: ${AI_ENABLED:false}
+    timeout: ${AI_TIMEOUT:10s}

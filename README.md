@@ -88,11 +88,21 @@ Logical boundaries are API/security, payment domain, ledger, messaging, provider
 
 These are local database and provider-idempotency guarantees, not a claim of end-to-end exactly-once delivery. Provider idempotency and lookup are explicit assumptions.
 
+## Operations: review cases, cache, AI assistant, tracing, Kubernetes
+
+Each of these has a short decision record in [docs/decisions](docs/decisions).
+
+* **Review cases (JPA/Hibernate).** Reconciliation cases are work items: `GET /api/ops/review-cases`, then `POST /{id}/resolve` with a resolution (`ACCEPT_PROVIDER_RESULT`, `KEEP_LEDGER`, `ESCALATE`), a note and the version you loaded. `@Version` optimistic locking means two operators can never both decide one case; the loser gets `409`. Every decision is audited. The payment path stays on explicit SQL ([why](docs/decisions/0001-jdbc-for-money-jpa-for-review.md)).
+* **Redis cache.** Merchant balances and payment retries. Transaction-aware (writes after commit) and fail-safe (a Redis error is a miss, never a failed payment); the database always decides ([why](docs/decisions/0002-cache-is-optional.md)).
+* **AI review assistant (Spring AI).** `POST /api/ops/review-cases/{id}/assist` stores a summary and a suggested resolution; a human still resolves. Payment facts only, validated output, low confidence becomes `ESCALATE`, 10 s timeout, deterministic fallback ([why](docs/decisions/0003-ai-suggests-never-acts.md)). Locally and for free: `AI_ENABLED=true docker compose --profile ai up -d`, then `docker compose exec ollama ollama pull llama3.2`.
+* **Tracing (OpenTelemetry).** One trace per payment across the HTTP request, the RabbitMQ message and the provider calls; `X-Request-Id` is the trace id. Jaeger: http://localhost:16686 ([why](docs/decisions/0004-tracing.md)).
+* **Kubernetes.** [`k8s/base`](k8s/base): the API (2 replicas, non-root, read-only filesystem, all capabilities dropped, seccomp, probes on `/actuator/health/liveness` and `/readiness`, PodDisruptionBudget) and Redis behind a NetworkPolicy, in a namespace that enforces the *restricted* Pod Security Standard. CI scans them with [kubesieve](https://github.com/zaremifa-cell/kubesieve) (fails on any medium finding), then deploys [`k8s/overlays/kind`](k8s/overlays/kind) to a kind cluster and smoke-tests the API through the Service.
+
 ## Scope and next steps
 
 This is a runnable portfolio reference, not a certified payment institution. It includes no refunds, settlements to bank accounts, FX, sanctions screening, document verification or multi-region failover. The operational identity decision is simulated. Ledger and audit are append-only through the application APIs; a database owner can still mutate them. A real deployment needs restricted database roles, stronger audit storage, external authentication, signed webhooks, retention policy and operational alerting.
 
-CI runs PostgreSQL integration tests, builds the full Compose stack, and executes the live demo and failure-injection scripts on GitHub Actions. Performance figures are only valid when accompanied by the actual hardware, dataset and commands in the verification report.
+CI runs PostgreSQL and Redis integration tests, builds the full Compose stack, deploys to a kind Kubernetes cluster, and executes the live demo and failure-injection scripts on GitHub Actions. Performance figures are only valid when accompanied by the actual hardware, dataset and commands in the verification report.
 
 ## Verified evidence
 

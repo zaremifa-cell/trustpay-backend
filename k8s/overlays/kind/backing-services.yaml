@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: postgres}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: postgres}
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          env:
+            - {name: POSTGRES_DB, value: trustpay}
+            - {name: POSTGRES_USER, value: trustpay}
+            - {name: POSTGRES_PASSWORD, value: trustpay}
+          ports: [{containerPort: 5432}]
+          readinessProbe:
+            exec: {command: ["pg_isready", "-U", "trustpay"]}
+            periodSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  selector: {app.kubernetes.io/name: postgres}
+  ports: [{port: 5432}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+spec:
+  selector:
+    matchLabels: {app.kubernetes.io/name: rabbitmq}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/name: rabbitmq}
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:4-alpine
+          env:
+            - {name: RABBITMQ_DEFAULT_USER, value: trustpay}
+            - {name: RABBITMQ_DEFAULT_PASS, value: trustpay}
+          ports: [{containerPort: 5672}]
+          readinessProbe:
+            exec: {command: ["rabbitmq-diagnostics", "-q", "ping"]}
+            periodSeconds: 5
+            timeoutSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+spec:
+  selector: {app.kubernetes.io/name: rabbitmq}
+  ports: [{port: 5672}]

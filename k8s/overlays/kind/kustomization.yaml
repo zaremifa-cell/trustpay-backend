@@ -1,0 +1,40 @@
+# CI smoke test in a throwaway kind cluster: the base plus disposable PostgreSQL and RabbitMQ,
+# demo credentials and a locally built image. Never deploy this overlay anywhere real.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: trustpay
+resources:
+  - ../../base
+  - backing-services.yaml
+images:
+  - name: ghcr.io/zaremifa-cell/trustpay
+    newName: trustpay
+    newTag: ci
+secretGenerator:
+  - name: trustpay-secrets
+    options: {disableNameSuffixHash: true}
+    literals:
+      - DATABASE_USER=trustpay
+      - DATABASE_PASSWORD=trustpay
+      - RABBIT_USER=trustpay
+      - RABBIT_PASSWORD=trustpay
+      - JWT_SECRET=ci-only-signing-key-0123456789abcdef
+      - PROVIDER_SECRET=ci-only-provider-secret
+      - MERCHANT_PASSWORD=merchant-demo
+      - OTHER_PASSWORD=other-demo
+      - OPS_PASSWORD=ops-demo
+patches:
+  - target: {kind: Deployment, name: trustpay}
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+  # The official PostgreSQL and RabbitMQ images start as root, which "restricted" forbids.
+  - target: {kind: Namespace, name: trustpay}
+    patch: |
+      - op: replace
+        path: /metadata/labels/pod-security.kubernetes.io~1enforce
+        value: baseline

@@ -21,6 +21,25 @@ services:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s
       retries: 30
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "96mb", "--maxmemory-policy", "allkeys-lru"]
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      retries: 20
+  # Traces from the API, its provider calls and RabbitMQ messages: http://localhost:16686
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    ports: ["127.0.0.1:16686:16686"]
+  # Optional local model for the review assistant: docker compose --profile ai up
+  # then once: docker compose exec ollama ollama pull llama3.2
+  ollama:
+    image: ollama/ollama:0.5.7
+    profiles: ["ai"]
+    ports: ["127.0.0.1:11434:11434"]
+    volumes: ["ollama:/root/.ollama"]
   provider:
     image: python:3.12-alpine
     command: ["python", "/app/server.py"]
@@ -40,10 +59,18 @@ services:
       MERCHANT_PASSWORD: ${MERCHANT_PASSWORD:-merchant-demo}
       OTHER_PASSWORD: ${OTHER_PASSWORD:-other-demo}
       OPS_PASSWORD: ${OPS_PASSWORD:-ops-demo}
+      CACHE: redis
+      REDIS_HOST: redis
+      REDIS_HEALTH: "true"
+      MANAGEMENT_OTLP_TRACING_ENDPOINT: http://jaeger:4318/v1/traces
+      AI_ENABLED: ${AI_ENABLED:-false}
+      OLLAMA_URL: http://ollama:11434
     depends_on:
       postgres: {condition: service_healthy}
       rabbit: {condition: service_healthy}
+      redis: {condition: service_healthy}
       provider: {condition: service_started}
 volumes:
   pgdata:
   providerdata:
+  ollama:

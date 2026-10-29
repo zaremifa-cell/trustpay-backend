@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trustpay-config
+data:
+  DATABASE_URL: jdbc:postgresql://postgres:5432/trustpay
+  RABBIT_HOST: rabbitmq
+  PROVIDER_URL: http://provider:8081
+  CACHE: redis
+  REDIS_HOST: redis
+  REDIS_HEALTH: "true"
+  TRACE_SAMPLING: "0.1"
+# Credentials live in the Secret "trustpay-secrets", created outside this repository
+# (sealed-secrets, external-secrets or kubectl create secret). Keys: DATABASE_USER,
+# DATABASE_PASSWORD, RABBIT_USER, RABBIT_PASSWORD, JWT_SECRET, PROVIDER_SECRET,
+# MERCHANT_PASSWORD, OTHER_PASSWORD, OPS_PASSWORD.
