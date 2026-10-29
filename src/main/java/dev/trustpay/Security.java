@@ -79,6 +79,8 @@ class Security {
                             "/api/demo/session",
                             "/api/internal/cloud/consume",
                             "/actuator/health",
+                            "/actuator/health/liveness", // Kubernetes probes: status only,
+                            "/actuator/health/readiness", // never details
                             "/v3/api-docs/**",
                             "/swagger-ui/**",
                             "/swagger-ui.html",

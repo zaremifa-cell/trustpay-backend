@@ -179,6 +179,15 @@ class ReviewAndCacheTest {
   }
 
   @Test
+  void kubernetesProbesNeedNoCredentials() throws Exception {
+    mvc.perform(get("/actuator/health/liveness"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("UP"));
+    mvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk());
+    mvc.perform(get("/actuator/prometheus")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
   void everyResponseCarriesItsTraceId() throws Exception {
     var header =
         mvc.perform(get("/api/ops/review-cases").with(httpBasic("ops", "ops-demo")))
