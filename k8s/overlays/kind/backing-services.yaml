@@ -47,10 +47,13 @@ spec:
             - {name: RABBITMQ_DEFAULT_USER, value: trustpay}
             - {name: RABBITMQ_DEFAULT_PASS, value: trustpay}
           ports: [{containerPort: 5672}]
+          # A TCP check: exec probes start a whole Erlang VM each time, which on a small CI runner
+          # slowed RabbitMQ's boot enough to get it restarted.
           readinessProbe:
-            exec: {command: ["rabbitmq-diagnostics", "-q", "ping"]}
+            tcpSocket: {port: 5672}
             periodSeconds: 5
-            timeoutSeconds: 10
+          resources:
+            requests: {cpu: 250m, memory: 256Mi}
 ---
 apiVersion: v1
 kind: Service

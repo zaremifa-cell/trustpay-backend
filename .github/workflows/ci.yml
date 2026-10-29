@@ -52,7 +52,7 @@ jobs:
         run: |
           kubectl apply -k k8s/overlays/kind
           kubectl -n trustpay rollout status deploy/postgres --timeout=180s
-          kubectl -n trustpay rollout status deploy/rabbitmq --timeout=180s
+          kubectl -n trustpay rollout status deploy/rabbitmq --timeout=240s
           kubectl -n trustpay rollout status deploy/redis --timeout=120s
           kubectl -n trustpay rollout status deploy/trustpay --timeout=300s
       - name: Smoke test through the Service
@@ -67,6 +67,7 @@ jobs:
         run: |
           kubectl -n trustpay get pods,events
           kubectl -n trustpay logs deploy/trustpay --tail=200 || true
+          kubectl -n trustpay logs deploy/rabbitmq --previous --tail=80 || kubectl -n trustpay logs deploy/rabbitmq --tail=80 || true
 
   cloud-bridge:
     runs-on: ubuntu-latest
